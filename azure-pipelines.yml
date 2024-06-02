@@ -1,0 +1,90 @@
+trigger:
+  - HuePlayFlat
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  repositories:
+    - repository: HLBaseRepository 
+      type: git
+      name: HueLearnApps/HLBase
+      ref: refs/heads/HuePlayFlat
+
+
+variables:
+  buildConfiguration: 'Release'
+  solution: 'HuePlay/HuePlay.sln'
+  project: 'HuePlay/HuePlay/HuePlay.csproj'
+  buildPlatform: 'Any CPU'
+
+steps:
+  # DotNet Install Required Version
+  - task: UseDotNet@2
+    inputs:
+      packageType: 'sdk'
+      version: '8.x'
+    displayName: 'Install .NET SDK 8.x'
+
+  - task: NuGetToolInstaller@1
+    inputs:
+      versionSpec: '6.x'
+    displayName: 'Use NuGet'
+   
+  # Checkout HLBase and HuePlay
+  - checkout: self
+    persistCredentials: true
+    
+  - checkout: git://HueLearnApps/HLBase 
+    persistCredentials: true
+    condition: eq(variables['Build.SourceBranch'], 'refs/heads/HuePlayFlat')
+  
+  - script: dir $(Build.SourcesDirectory)
+  
+  # Restore NuGet packages 
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'restore'
+      projects: '$(solution)'
+      arguments: '--verbosity detailed'
+    displayName: 'Restore Packages'
+
+  # Build HuePlay
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'build'
+      arguments: '--configuration $(buildConfiguration)'
+      projects: '$(solution)'
+    displayName: 'Build HuePlay'
+
+  # Publish HuePlay
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'publish'
+      publishWebProjects: true
+      projects: '$(solution)'
+      arguments: '--no-restore --configuration Release --output $(Build.ArtifactStagingDirectory)'
+      zipAfterPublish: true
+    displayName: 'Publish HuePlay'
+
+  # Publish Artifacts
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifacts'
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: 'drop'
+      publishLocation: 'Container'
+ 
+  # Deploy to AzureWebApp
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'Microsoft Azure Sponsorship(8643ddf3-cee0-4224-8726-649b96a7c9aa)'
+      appType: 'webAppLinux'
+      appName: 'hueplay'
+      package: '$(Build.ArtifactStagingDirectory)/HuePlay.zip'
+      resourceGroupName: 'hl-webapp-rg'
+      runtimeStack: 'DOTNETCORE|8.0'
+      
+      
+      
+   

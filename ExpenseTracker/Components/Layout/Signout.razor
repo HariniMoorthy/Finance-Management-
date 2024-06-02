@@ -1,0 +1,25 @@
+@inject NavigationManager navigationManager
+
+<MudDialog Class="custom-dialog">
+    <DialogActions >
+        <MudButton Style="border-radius:24px;" OnClick="Cancel" Color="Color.Default" Variant="Variant.Outlined" Size="Size.Medium">Cancel</MudButton>
+        <form action="Account/Logout" method="post">
+            <AntiforgeryToken />
+            <MudButton Style="border-radius:24px;" Color="Color.Error" Class="mr-4" Variant="Variant.Outlined" OnClick="Submit" ButtonType="ButtonType.Submit" Size="Size.Medium">Log Out</MudButton>
+        </form>
+    </DialogActions>
+</MudDialog>
+
+
+
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+
+    async Task Submit()
+    {
+    MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    void Cancel() => MudDialog.Cancel();
+}

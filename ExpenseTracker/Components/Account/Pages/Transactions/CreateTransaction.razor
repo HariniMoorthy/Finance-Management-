@@ -1,0 +1,148 @@
+﻿@page "/transactions/create"
+@using ExpenseTracker.Models
+@using Finance.Services
+@layout Layout.PrimaryLayout
+@inject NavigationManager NavigationManager
+@inject DataManagementService dataService
+@inject ISnackbar Snackbar
+<h3>Create Transaction</h3>
+
+<MudCard Class="pa-4 mt-8">
+<MudTextField @bind-Value="transactionModel.Description" Label="Description" Variant="Variant.Outlined" Class="mb-4"></MudTextField>
+    <MudTextField @bind-Value="transactionModel.Amount" Label="Amount" Variant="Variant.Outlined" Class="mb-4"></MudTextField>
+    <MudDatePicker Label="Date" Variant="Variant.Outlined" @bind-Date="transactionModel.Date" Class="mb-4" />
+    <MudStack Row=true>
+     <MudSelect T="bool" Label="Price" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" @bind-Value="transactionModel.IsIncome" Class="mb-4">
+    <MudSelectItem T="bool" Value=@(true) > Income </MudSelectItem>
+    <MudSelectItem T="bool" Value=@(false) > Expense </MudSelectItem>
+     </MudSelect>
+     <MudSelect T="string" Label="Category" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" @bind-Value="transactionModel.CategoryName" Class="mb-4">
+       @if(financeData != null && financeData.Category != null && financeData.Category.Count>0){
+         @foreach(var category in financeData.Category){
+         <MudSelectItem T="string" Value=@(category.Name)>  </MudSelectItem>
+        }
+        }
+     </MudSelect>
+    </MudStack>
+
+<MudButton Color="Color.Primary"  Variant="Variant.Filled" @onclick="HandleCreateTransaction"> Create Transaction</MudButton>
+</MudCard>
+
+
+@if (financeData == null || financeData.Transactions == null || financeData.Transactions.Count<1)
+{
+    <p>No Transactions found</p>
+}
+else
+{
+    <MudSimpleTable Style="height:300px" Class="overflow-y-scroll" FixedHeader=true >
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var transaction in financeData.Transactions)
+            {
+                <tr>
+                    @if (transaction != null) { 
+                    <td>@transaction.Description</td>
+                    <td>@transaction.Amount.ToString("C")</td>
+                    <td>@transaction.Date.Value.ToShortDateString()</td>
+                    <td>@(transaction.CategoryName)</td>
+                    <td>@(transaction.IsIncome ? "Income" : "Expense")</td>
+                    <td>
+                    
+                        <MudButton Variant="Variant.Filled" Color="Color.Error" @onclick="() => HandleDeleteTransaction(transaction.Id,financeData.userId)">Delete</MudButton>
+                       
+                    </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    private Transaction transactionModel = new Transaction();
+
+    public FinanceData financeData = new();
+
+    public string userId { get; set; } = string.Empty;
+
+    private async Task HandleCreateTransaction()
+    {
+        Console.WriteLine("inside create transaction");
+        var financeResult = await dataService.mongoService.GetByUserIdAsync(userId);
+        if (financeResult == null)
+        {
+            financeData = new FinanceData();
+        }
+        else
+        {
+            financeData = financeResult;
+        }
+        financeData.userId = dataService.getUserId();
+
+        var transaction = new Transaction
+        {
+            Description = transactionModel.Description,
+            Amount = transactionModel.Amount,
+            Date = transactionModel.Date,
+            CategoryName = transactionModel.CategoryName,
+            IsIncome = transactionModel.IsIncome,
+        };
+
+        if(transaction.Description != null)
+            Console.WriteLine(transaction.Description);
+
+        if (transaction.Amount != null)
+            Console.WriteLine(transaction.Amount);
+
+        if (transaction.Date != null)
+            Console.WriteLine(transaction.Date);
+
+        if (transaction.CategoryName != null)
+            Console.WriteLine(transaction.CategoryName);
+
+        if (transaction.IsIncome != null)
+            Console.WriteLine(transaction.IsIncome);
+
+        if (financeData.Transactions == null){
+            financeData.Transactions = new List<Transaction>();
+            financeData.Transactions.Add(transaction);
+        }
+        else
+            financeData.Transactions.Add(transaction);
+        Console.WriteLine("added to db");
+
+        await dataService.mongoService.UpsertByUserIdAsync(userId,financeData);
+        financeData = await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+
+    }
+
+    public async void HandleDeleteTransaction(string id , string userId)
+    {
+        await dataService.mongoService.deleteTransaction(id, userId);
+        Snackbar.Add("Transaction deleted", Severity.Error);
+        financeData = await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        userId =  dataService.getUserId();
+        Console.WriteLine(userId);
+        financeData= await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+    }
+}
+
+        
+        

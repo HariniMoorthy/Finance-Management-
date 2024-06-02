@@ -1,0 +1,162 @@
+﻿@page "/Account/Register"
+@rendermode InteractiveServer
+@using ExpenseTracker.Components
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Logging
+@using System.Threading
+
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<ApplicationRole> RoleManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject ISnackbar Snackbar
+
+<PageTitle>Register</PageTitle>
+
+<MyMudProvider/>
+
+<MudElement HtmlTag="div" Class="ma-0 pa-0" Style="background-color: white;width: 100vw;height: 100vh;overflow: hidden">
+
+    
+    <MudGrid Class="align-center" Style="height: 100%;z-index: 0">
+        <MudItem xs="6" Class="mt-10">
+            <MudStack Row="true" Justify="Justify.Center" Style="width: 100%">
+                <MudCard Style="width:800px" Class="ml-8">
+                    <MudCardContent>
+                        <MudElement Style="min-width: 300px">
+                            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6 spaced-text">Register</MudText>
+                            <MudText Variant="Variant.H6" Color="Color.Error" Class="mb-4" Align="Align.Center">
+                                @errorMessage
+                            </MudText>
+                            <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="@RegisterUser" FormName="register">
+                                <MudStack Spacing="4">
+                                    <AntiforgeryToken/>
+                                    <DataAnnotationsValidator/>
+                                    <ValidationSummary/>
+                                    <MudTextField @bind-Value="Input.Email" Label="Email" Variant="Variant.Outlined"/>
+                                    <MudTextField @bind-Value="Input.Password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined"/>
+                                    <MudTextField @bind-Value="Input.ConfirmPassword" Label="Confirm Password" InputType="InputType.Password" Variant="Variant.Outlined"/>
+
+                                    <MudStack Class="mt-2" AlignItems="AlignItems.Center">
+                                        <MudButton Style="margin-bottom:12px; cursor:pointer" Variant="Variant.Outlined"  Disabled="@_isRegisterDisabled" Color="Color.Info" Class="login-button" ButtonType="ButtonType.Submit">Sign Up</MudButton>
+                                        <MudText>Already have an account? <MudLink Href="/Account/Login">Login</MudLink> </MudText>
+                                    </MudStack>
+                                </MudStack>
+                            </EditForm>
+                        </MudElement>
+                    </MudCardContent>
+                </MudCard>
+            </MudStack>
+        </MudItem>
+    </MudGrid>
+    
+</MudElement>
+
+
+
+@code {
+
+    private IEnumerable<IdentityError>? identityErrors;
+    
+    private string? errorMessage;
+    
+    private bool _isRegisterDisabled = false;
+
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+    
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+
+        _isRegisterDisabled = true;
+        var usr = await UserManager.FindByEmailAsync(Input.Email);
+        
+        if (usr != null)
+        {
+            _isRegisterDisabled = false;
+            errorMessage = "Email Already Exists";
+            return;
+        }
+        
+        var user = CreateUser();
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        var emailStore = GetEmailStore();
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (!result.Succeeded)
+        {
+            Console.WriteLine(result.ToString());
+            errorMessage = "Error in registering user";
+            return;
+        }
+        
+        _isRegisterDisabled = false;
+        Logger.LogInformation("User created a new account with password.");
+        Console.WriteLine("User Created");
+        Snackbar.Add("Registration Successful", Severity.Success);
+        var confirmationResult = await UserManager.ConfirmEmailAsync(user, await UserManager.GenerateEmailConfirmationTokenAsync(user));
+            if (!confirmationResult.Succeeded)
+            {
+                Console.WriteLine(confirmationResult.ToString());
+            }
+        Guid key = Guid.NewGuid();
+        BlazorCookieLoginMiddleware.Logins[key] = new LoginInfo { Email = Input.Email, Password = Input.Password };
+        NavigationManager.NavigateTo($"/login?key={key}", true);
+    }
+
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [EmailAddress]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = "";
+
+
+        [Required]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [RegularExpression(@"^(?=.*\d)(?=.*[A-Z])(?=.*[!@#$%^&*()_+{}\[\]:;<>,.?~]).*$",ErrorMessage = "The password must contains atleast one digit and one upper case letter and one symbol")]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; } = "";
+
+     
+    }
+}

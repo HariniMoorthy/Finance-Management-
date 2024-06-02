@@ -1,0 +1,12 @@
+﻿<h3>Home</h3>
+
+@page "/home"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+
+@layout Layout.PrimaryLayout
+
+<MudText Typo="Typo.h3" Class="mt-15 ms-5" Color="Color.Primary">Welcome to Expense Tracker</MudText>
+
+@code {
+}

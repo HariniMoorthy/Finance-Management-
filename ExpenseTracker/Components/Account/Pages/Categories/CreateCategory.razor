@@ -1,0 +1,101 @@
+﻿@page "/categories/create"
+@layout Layout.PrimaryLayout
+@using ExpenseTracker.Models
+@using Finance.Services
+
+@inject NavigationManager NavigationManager
+@inject DataManagementService dataService
+@inject ISnackbar Snackbar
+<h3>Create Category</h3>
+
+<MudCard Class="pa-4 mt-8">
+   <MudTextField Label="Category Name" Class="mb-3 mt-14 ms-4 me-4" Variant="Variant.Outlined" @bind-Value="categoryModel.Name" />
+
+   <MudButton Style="width:100px" Class="ms-8" Color="Color.Info" Variant="Variant.Filled" @onclick="HandleCreateCategory" >Create</MudButton>
+</MudCard>
+ @if (financeData==null || financeData.Category==null || financeData.Category.Count<1)
+{
+    <p>No Categories</p>
+}
+else
+{
+        <MudSimpleTable >
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var category in financeData.Category)
+        {
+                <tr>
+                    @if (category.Name != null) { 
+                    <td>@category.Name</td>
+                    }
+        <td>
+              <MudButton Variant="Variant.Filled" Color="Color.Error" @onclick="() => HandleDeleteCategory(category.Id,financeData.userId)">Delete</MudButton>
+        </td> 
+        </tr>
+        } 
+            </tbody>
+        </MudSimpleTable>
+        }
+         
+    
+
+@code {
+    private Category categoryModel = new Category();
+    public FinanceData financeData = new();
+    string userId = string.Empty;
+
+    private async Task HandleCreateCategory()
+    {
+        var category = new Category
+        {
+            Name = categoryModel.Name
+        };
+        if(categoryModel.Name != null)
+            Console.WriteLine(categoryModel.Name);
+
+        var financeResult = await dataService.mongoService.GetByUserIdAsync(userId);
+        if (financeResult == null)
+        {
+            financeData = new FinanceData();
+        }
+        else
+        {
+            financeData = financeResult;
+        }
+        if (financeData.Category == null)
+        {
+            financeData.Category = new List<Category>();
+            financeData.Category.Add(category);
+        }
+        else
+        {
+            financeData.Category.Add(category);
+        }
+        await dataService.mongoService.UpsertByUserIdAsync(userId ,financeData);
+        financeData = await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        userId =  dataService.getUserId();
+        financeData = await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+    }
+
+    public async void HandleDeleteCategory(string id, string userId)
+    {
+        await dataService.mongoService.deleteCategory(id, userId);
+        Snackbar.Add("Category deleted", Severity.Error);
+        financeData = await dataService.mongoService.GetByUserIdAsync(userId);
+        StateHasChanged();
+    }
+
+
+}
